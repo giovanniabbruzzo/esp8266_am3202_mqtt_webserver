@@ -5,8 +5,7 @@ WiFiClient espClient;
 PubSubClient client(espClient);
 char mqtt_payload[256];
 
-extern volatile float t;
-extern volatile float h;
+extern app_t app;
 
 // MQTT broker details
 extern const char* mqtt_server;
@@ -38,7 +37,13 @@ int mqtt_init(void){
 void mqtt_send(void){
     // Publish temperature and humidity to MQTT broker
     if (client.connected()) {
-      snprintf(mqtt_payload, sizeof(mqtt_payload), "{\"TP\": %.2f, \"HM\": %.2f}", t, h);
+      snprintf(mqtt_payload, sizeof(mqtt_payload), 
+      "{\"TP\": %.2f, \"HM\": %.2f, \"IP\":\"%s\", \"MA\":\"%s\", \"FV\":\"%s\"}", 
+      app.sensors.temp, 
+      app.sensors.hum,
+      app.ipAddr.c_str(),
+      app.macAddr.c_str(),
+      app.fwVersion.c_str());
       client.publish(mqtt_topic, mqtt_payload);
       PRINT("Data sent to MQTT broker topic> ");
       PRINTLN(mqtt_topic);

@@ -1,8 +1,7 @@
-// Import required libraries
+#include <ArduinoOTA.h>
 #include "common_definitions.h"
 #include <Hash.h>
-#include <Adafruit_Sensor.h>
-#include <DHT.h>
+
 /*
   sectrets.h will contain at least:
   extern const char* ssid;
@@ -17,20 +16,13 @@
 */
 #include "webserver.h"
 #include "mqtt_hal.h"
-#include <ArduinoOTA.h>
+#include "app.h"
 
 extern const char* ssid;
 extern const char* password;
-
-#define DHTPIN D2     // Digital pin connected to the DHT sensor
-
-#define DHTTYPE    DHT22     // DHT 22 (AM2302)
-
-DHT dht(DHTPIN, DHTTYPE);
-
-// current temperature & humidity, updated in loop()
-volatile float t = 0.0;
-volatile float h = 0.0;
+extern const char* ota_psk;
+extern app_t app;
+volatile app_timer_t timers;
 
 // Generally, you should use "unsigned long" for variables that hold time
 // The value will quickly become too large for an int to store
@@ -39,46 +31,20 @@ unsigned long previousMillis = 0;    // will store last time DHT was updated
 // Updates DHT readings every 10 seconds
 const long interval = 60000;  
 
-extern const char* ota_psk;
+void ota_init(void);
+void ota_loop(void);
+void timer_init(void);
 
-void ota_init(void){
-  // Port defaults to 8266
-  // ArduinoOTA.setPort(8266);
-
-  // Hostname defaults to esp8266-[ChipID]
-  // ArduinoOTA.setHostname("myesp8266");
-
-  // No authentication by default
-  ArduinoOTA.setPassword((const char *)ota_psk);
-
-  ArduinoOTA.onStart([]() {
-    Serial.println("Start");
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-  });
-  ArduinoOTA.begin();
-}
-
-void ota_loop(void){
-  ArduinoOTA.handle();
+void IRAM_ATTR onTimer() {
+  if(timers.LEDBlinkTimer) timers.LEDBlinkTimer--;
+  if(timers.updateDataTransmitMqttTimer) timers.updateDataTransmitMqttTimer--;
+  if(timers.mqttCallLoopTimer) timers.mqttCallLoopTimer--;
+  if(timers.WiFiReconnectionTimer) timers.WiFiReconnectionTimer--;
 }
 
 void setup(){
   SERIAL_INIT
   PRINTF("My version number is: %d.%d.%d\n",FW_VERSION_MAJOR,FW_VERSION_MINOR,FW_VERSION_PATCH)
-  dht.begin();
 
   pinMode(LED_PIN, OUTPUT);
   
@@ -94,43 +60,103 @@ void setup(){
   PRINT("http://")
   PRINTLN(WiFi.localIP());
 
+  app_init();
+
   webserver_init();
   mqtt_init();
   ota_init();
+  timer_init();
 }
  
-void loop(){  
-  static uint8_t firstTime = 1;
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval || firstTime) {
-    firstTime = 0;
-    // save the last time you updated the DHT values
-    previousMillis = currentMillis;
-    // Read temperature as Celsius (the default)
-    float newT = dht.readTemperature();
-    // Read temperature as Fahrenheit (isFahrenheit = true)
-    //float newT = dht.readTemperature(true);
-    // if temperature read failed, don't change t value
-    if (isnan(newT)) {
-      PRINTLN("Failed to read from DHT sensor!");
-    }
-    else {
-      t = newT;
-    }
-    // Read Humidity
-    float newH = dht.readHumidity();
-    // if humidity read failed, don't change h value 
-    if (isnan(newH)) {
-      PRINTLN("Failed to read from DHT sensor!");
-    }
-    else {
-      h = newH;
-    }
-
+void loop(){     
+  if(!timers.LEDBlinkTimer){
+    timers.LEDBlinkTimer = TIME_LED_TOGGLE_PERIOD_100MS;
+    LED_TOGGLE
+  }
+  if(!timers.updateDataTransmitMqttTimer){
+    timers.updateDataTransmitMqttTimer = TIMER_UPDATE_DATA_MQTT_SEND_PERIOD_100MS;
+    app_get_sensor_data();
     mqtt_send();
   }
-  delay(250);
-  mqtt_loop();
+  if(!timers.mqttCallLoopTimer){
+    timers.mqttCallLoopTimer =  TIMER_MQTT_LOOP_CALL_PERIOD_100MS;
+    mqtt_loop();
+  }
+  if(!timers.WiFiReconnectionTimer){
+    // timers.WiFiReconnectionTimer = TIMER_WIFI_CHECK_CONNECTION_100MS;
+    // CALL WIFI CHECK
+  }
+  // if(!timers.callOTAloopTimer){
+  //   timers.callOTAloopTimer = TIME_OTA_LOOP_CALL_PERIOD_100MS;
+  //   ota_loop();
+  // }
+  delay(10);
   ota_loop();
-  LED_TOGGLE
+}
+
+void ota_init(void){
+ // Port defaults to 3232
+  // ArduinoOTA.setPort(1032);
+
+  // Hostname defaults to esp3232-[MAC]
+  // ArduinoOTA.setHostname("esp32-1");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword("admin");
+
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  ArduinoOTA.onStart([]() {
+    String type;
+    if (ArduinoOTA.getCommand() == U_FLASH)
+      type = "sketch";
+    else // U_SPIFFS
+      type = "filesystem";
+      // NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
+      PRINTLN("Start updating " + type)
+  });
+  ArduinoOTA.onEnd([]() {
+      PRINTLN("\nEnd")
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+#ifdef SERIAL_DEBUG
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+#endif
+    LED_TOGGLE
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+#ifdef SERIAL_DEBUG
+    Serial.printf("Error[%u]: ", error);
+#endif
+    if (error == OTA_AUTH_ERROR) PRINTLN("Auth Failed")
+    else if (error == OTA_BEGIN_ERROR) PRINTLN("Begin Failed")
+    else if (error == OTA_CONNECT_ERROR) PRINTLN("Connect Failed")
+    else if (error == OTA_RECEIVE_ERROR) PRINTLN("Receive Failed")
+    else if (error == OTA_END_ERROR) PRINTLN("End Failed")
+  });
+  ArduinoOTA.begin();
+
+  PRINTLN("Ready")
+}
+
+void ota_loop(void){
+  ArduinoOTA.handle();
+}
+
+void timer_init(void){
+  //Timer interrupt definition
+  noInterrupts();
+  timer1_isr_init();
+  timer1_attachInterrupt(onTimer);
+  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+  timer1_write(500000);
+  interrupts();
+
+  timers.LEDBlinkTimer = TIME_LED_TOGGLE_PERIOD_100MS;
+  timers.updateDataTransmitMqttTimer = 0; //TIMER_UPDATE_DATA_MQTT_SEND_PERIOD_100MS
+  timers.mqttCallLoopTimer = 0; // TIMER_MQTT_LOOP_CALL_PERIOD_100MS
+  timers.WiFiReconnectionTimer = 0; // TIMER_WIFI_CHECK_CONNECTION_100MS
+  timers.callOTAloopTimer = TIME_OTA_LOOP_CALL_PERIOD_100MS;
 }
