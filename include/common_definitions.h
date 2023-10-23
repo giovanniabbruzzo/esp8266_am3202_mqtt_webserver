@@ -39,6 +39,11 @@
 #define LED_OFF digitalWrite(LED_PIN, LOW);
 #define LED_TOGGLE digitalWrite(LED_PIN, !digitalRead(LED_PIN));
 
+#define LAMP_PIN D5
+#define LAMP_ON digitalWrite(LAMP_PIN, HIGH);
+#define LAMP_OFF digitalWrite(LAMP_PIN, LOW);
+#define LAMP_TOGGLE digitalWrite(LAMP_PIN, !digitalRead(LAMP_PIN));
+
 // Timers
 #define TIME_LED_TOGGLE_PERIOD_100MS 10
 #define TIMER_UPDATE_DATA_MQTT_SEND_PERIOD_100MS 10*60

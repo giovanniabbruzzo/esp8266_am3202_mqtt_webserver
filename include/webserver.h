@@ -21,6 +21,19 @@ const char index_html[] PROGMEM = R"rawliteral(
       vertical-align:middle;
       padding-bottom: 15px;
     }
+    #toggle {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+        margin: 10px;
+        cursor: pointer;
+        border-radius: 5px;
+    }
   </style>
 </head>
 <body>
@@ -37,6 +50,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     <span id="humidity">%HUMIDITY%</span>
     <sup class="units">%</sup>
   </p>
+  <p>LED state: <span id="led-state">OFF</span></p>
+    <button id="toggle">Toggle LED</button>      
 </body>
 <script>
 setInterval(function ( ) {
@@ -60,6 +75,9 @@ setInterval(function ( ) {
   xhttp.open("GET", "/humidity", true);
   xhttp.send();
 }, 10000 ) ;
+document.getElementById('toggle').onclick = function() {
+            fetch('/toggle_lamp');
+        };
 </script>
 </html>)rawliteral";
 

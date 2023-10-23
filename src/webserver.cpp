@@ -23,6 +23,10 @@ void webserver_init(void){
     server.on("/humidity", HTTP_GET, [](AsyncWebServerRequest *request){
         request->send_P(200, "text/plain", String(app.sensors.hum).c_str());
     });
+    server.on("/toggle_lamp", HTTP_GET, [](AsyncWebServerRequest *request){
+        LAMP_TOGGLE        
+        request->send(200);
+  });
 
     // Start server
     server.begin();

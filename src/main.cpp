@@ -47,6 +47,9 @@ void setup(){
   PRINTF("My version number is: %d.%d.%d\n",FW_VERSION_MAJOR,FW_VERSION_MINOR,FW_VERSION_PATCH)
 
   pinMode(LED_PIN, OUTPUT);
+  pinMode(LAMP_PIN, OUTPUT);
+
+  LED_OFF
   
   // Connect to Wi-Fi
   WiFi.begin(ssid, password);
@@ -66,13 +69,15 @@ void setup(){
   mqtt_init();
   ota_init();
   timer_init();
+
+  LED_ON
 }
  
 void loop(){     
-  if(!timers.LEDBlinkTimer){
-    timers.LEDBlinkTimer = TIME_LED_TOGGLE_PERIOD_100MS;
-    LED_TOGGLE
-  }
+  // if(!timers.LEDBlinkTimer){
+  //   timers.LEDBlinkTimer = TIME_LED_TOGGLE_PERIOD_100MS;
+  //   LED_TOGGLE
+  // }
   if(!timers.updateDataTransmitMqttTimer){
     timers.updateDataTransmitMqttTimer = TIMER_UPDATE_DATA_MQTT_SEND_PERIOD_100MS;
     app_get_sensor_data();
@@ -154,7 +159,7 @@ void timer_init(void){
   timer1_write(500000);
   interrupts();
 
-  timers.LEDBlinkTimer = TIME_LED_TOGGLE_PERIOD_100MS;
+  timers.LEDBlinkTimer = 0; //TIME_LED_TOGGLE_PERIOD_100MS
   timers.updateDataTransmitMqttTimer = 0; //TIMER_UPDATE_DATA_MQTT_SEND_PERIOD_100MS
   timers.mqttCallLoopTimer = 0; // TIMER_MQTT_LOOP_CALL_PERIOD_100MS
   timers.WiFiReconnectionTimer = 0; // TIMER_WIFI_CHECK_CONNECTION_100MS

@@ -15,9 +15,12 @@ extern const char* mqtt_password;
 extern const char* mqtt_topic;
 extern const char* mqtt_sub_topic;
 
+static void mqtt_callback(char* topic, byte* message, unsigned int length);
+
 int mqtt_init(void){
   // Connect to MQTT broker
   client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(mqtt_callback);
   while (!client.connected()) {
     PRINTLN("Connecting to MQTT broker...");
     if (client.connect("ArduinoClient", mqtt_user, mqtt_password )) {
@@ -55,9 +58,7 @@ void mqtt_send(void){
     }
 }
 
-
-
-void mqtt_callback(char* topic, byte* message, unsigned int length) {
+static void mqtt_callback(char* topic, byte* message, unsigned int length) {
     PRINT("Message arrived on topic: ");
     PRINT(topic);
 
@@ -67,8 +68,9 @@ void mqtt_callback(char* topic, byte* message, unsigned int length) {
     }
 
     // PRINT("Message received: ")    
-    // PRINT(message)
+    // PRINT(String(message))
     // Need to implement the commands yet
+    LAMP_TOGGLE
 }
 
 
